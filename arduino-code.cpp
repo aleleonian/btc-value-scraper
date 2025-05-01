@@ -1,6 +1,6 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
-#include <WiFiClient.h>
+#include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
@@ -10,8 +10,8 @@
 const char* ssid = "AlzateLopez";
 const char* password = "1036936137";
 
-// Server endpoint
-const char* serverName = "http://192.168.x.x:3000/btc-value";
+// HTTPS Server endpoint
+const char* serverName = "https://btc-value-scraper.ale.ar/btc-value";
 
 // OLED setup
 #define SCREEN_WIDTH 128
@@ -29,7 +29,7 @@ void setup() {
   }
   
   display.clearDisplay();
-  display.setTextSize(2); // Medium font
+  display.setTextSize(2);
   display.setTextColor(WHITE);
   display.setCursor(0,0);
   display.println("Connecting...");
@@ -57,41 +57,47 @@ void setup() {
 
 void loop() {
   if (WiFi.status() == WL_CONNECTED) {
-    HTTPClient http;
-    WiFiClient client;
-    
-    http.begin(client, serverName);
-    int httpCode = http.GET();
+    WiFiClientSecure client;
+    client.setInsecure(); // Accept all certificates (insecure but works for dev)
 
-    if (httpCode > 0) {
-      String payload = http.getString();
-      Serial.println(payload);
+    HTTPClient https;
+    if (https.begin(client, serverName)) {
+      int httpCode = https.GET();
 
-      // Parse JSON
-      DynamicJsonDocument doc(1024);
-      deserializeJson(doc, payload);
+      if (httpCode > 0) {
+        String payload = https.getString();
+        Serial.println(payload);
 
-      String btcValue = doc["btc"];
+        // Parse JSON
+        DynamicJsonDocument doc(1024);
+        DeserializationError error = deserializeJson(doc, payload);
+        if (!error) {
+          String btcValue = doc["btc"];
+          Serial.print("BTC VALUE: ");
+          Serial.println(btcValue);
 
-      Serial.print("BTC VALUE: ");
-      Serial.println(btcValue);
+          // DISPLAY ON OLED
+          display.clearDisplay();
+          display.setTextSize(1);
+          display.setCursor(0,0);
+          display.println("BTC PRICE:");
+          display.setTextSize(2);
+          display.setCursor(0, 20);
+          display.println("$" + btcValue);
+          display.display();
+        } else {
+          Serial.print("JSON parse error: ");
+          Serial.println(error.c_str());
+        }
+      } else {
+        Serial.print("HTTPS request failed: ");
+        Serial.println(https.errorToString(httpCode));
+      }
 
-      // DISPLAY ON OLED
-      display.clearDisplay();
-      display.setTextSize(1);
-      display.setCursor(0,0);
-      display.println("BTC PRICE:");
-      display.setTextSize(2);
-      display.setCursor(0, 20);
-      display.println("$" + btcValue);
-      display.display();
+      https.end();
+    } else {
+      Serial.println("HTTPS begin() failed");
     }
-    else {
-      Serial.print("Error on HTTP request: ");
-      Serial.println(http.errorToString(httpCode));
-    }
-    
-    http.end();
   }
 
   delay(5000); // Fetch every 5 seconds
