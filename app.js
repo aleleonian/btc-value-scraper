@@ -27,6 +27,7 @@ const structuredBtcProviders = btcProviders.map((url) => {
 });
 
 let providerQueue = [...structuredBtcProviders];
+console.log('structuredBtcProviders->', structuredBtcProviders);
 let currentBTCValue = "Fetching...";
 let currentBTCValueProvider = {};
 
@@ -41,7 +42,7 @@ function shuffleArray(array) {
 // Get next provider (reshuffle if needed)
 function getNextProvider() {
   if (providerQueue.length === 0) {
-    providerQueue = [...btcProviders];
+    providerQueue = [...structuredBtcProviders];
     shuffleArray(providerQueue);
   }
   return providerQueue.shift();
