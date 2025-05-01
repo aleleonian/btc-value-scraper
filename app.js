@@ -19,8 +19,16 @@ const btcProviders = [
   "https://api.kucoin.com/api/v1/market/orderbook/level1?symbol=BTC-USDT",
 ];
 
-let providerQueue = [...btcProviders];
+
+const structuredBtcProviders = btcProviders.map((url) => {
+  const { hostname } = new URL(url);
+  const site = hostname.replace(/^(www\.|api\.)/, '');
+  return { site, url };
+});
+
+let providerQueue = [...structuredBtcProviders];
 let currentBTCValue = "Fetching...";
+let currentBTCValueProvider = {};
 
 // Shuffle providers list
 function shuffleArray(array) {
@@ -41,36 +49,37 @@ function getNextProvider() {
 
 // Fetch BTC value from next provider
 async function fetchBTCValue() {
-  const providerURL = getNextProvider();
-  console.log(`Fetching BTC price from: ${providerURL}`);
+  const provider = getNextProvider();
+  currentBTCValueProvider = provider;
+  console.log(`Fetching BTC price from: ${provider.url}`);
 
   try {
-    const response = await axios.get(providerURL);
+    const response = await axios.get(provider.url);
     let btcValue = null;
 
-    if (providerURL.includes("coingecko")) {
+    if (provider.url.includes("coingecko")) {
       btcValue = response.data.bitcoin.usd;
-    } else if (providerURL.includes("coinbase")) {
+    } else if (provider.url.includes("coinbase")) {
       btcValue = response.data.data.amount;
-    } else if (providerURL.includes("kraken")) {
+    } else if (provider.url.includes("kraken")) {
       btcValue = response.data.result.XXBTZUSD.c[0];
-    } else if (providerURL.includes("binance")) {
+    } else if (provider.url.includes("binance")) {
       btcValue = response.data.price;
-    } else if (providerURL.includes("bitstamp")) {
+    } else if (provider.url.includes("bitstamp")) {
       btcValue = response.data.last;
-    } else if (providerURL.includes("gemini")) {
+    } else if (provider.url.includes("gemini")) {
       btcValue = response.data.last;
-    } else if (providerURL.includes("bitfinex")) {
+    } else if (provider.url.includes("bitfinex")) {
       btcValue = response.data[6];
-    } else if (providerURL.includes("coinpaprika")) {
+    } else if (provider.url.includes("coinpaprika")) {
       btcValue = response.data.quotes.USD.price;
-    } else if (providerURL.includes("blockchain")) {
+    } else if (provider.url.includes("blockchain")) {
       btcValue = response.data.last_trade_price;
-    } else if (providerURL.includes("huobi")) {
+    } else if (provider.url.includes("huobi")) {
       btcValue = response.data.tick.close;
-    } else if (providerURL.includes("okx")) {
+    } else if (provider.url.includes("okx")) {
       btcValue = response.data.data[0].last;
-    } else if (providerURL.includes("kucoin")) {
+    } else if (provider.url.includes("kucoin")) {
       btcValue = response.data.data.price;
     } else {
       btcValue = (25000 + Math.random() * 50000).toFixed(2); // fallback random
@@ -78,19 +87,19 @@ async function fetchBTCValue() {
 
     if (btcValue) {
       currentBTCValue = parseFloat(btcValue).toFixed(2);
-      console.log(`Updated BTC Value: $${currentBTCValue}`);
+      console.log(`Updated BTC Value: $${currentBTCValue} from ${currentBTCValueProvider.site}`);
     } else {
       console.error("Could not parse BTC value from response.");
     }
 
   } catch (error) {
-    console.error(`Failed to fetch from ${providerURL}:`, error.message);
+    console.error(`Failed to fetch from ${provider.url}:`, error.message);
   }
 }
 
 // Express endpoint
 app.get('/btc-value', (req, res) => {
-  res.json({ btc: currentBTCValue });
+  res.json({ btc: currentBTCValue, provider: currentBTCValueProvider.site });
 });
 
 // Start server and fetching loop
